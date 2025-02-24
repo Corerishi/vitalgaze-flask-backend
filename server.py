@@ -1,20 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import cv2
-import numpy as np
-import base64
-from main import FacialHealthAnalyzer
-
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Allow all origins
-
-
-app = Flask(__name__)
-CORS(app)  # Allows frontend to send requests
-
-analyzer = FacialHealthAnalyzer()  # Load your analysis model
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
 
 @app.route('/')
 def home():
@@ -24,23 +12,15 @@ def home():
 def analyze():
     try:
         data = request.json
-        image_data = data['image']
-        decoded_data = base64.b64decode(image_data)
-        np_arr = np.frombuffer(decoded_data, np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        image_data = data.get("image")
+        if not image_data:
+            return jsonify({"error": "No image provided"}), 400
 
-        analyzed_frame, results = analyzer.analyze_face(frame)
-        if results is None:
-            return jsonify({"error": "No face detected"}), 400
-
-        return jsonify(results)
+        return jsonify({"message": "Image received and processed!"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-import os
-
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))  # Use Render's assigned port
-    app.run(host='0.0.0.0', port=port, debug=True)
-
+    from os import environ
+    app.run(host='0.0.0.0', port=int(environ.get('PORT', 5000)), debug=True)
