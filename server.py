@@ -3,21 +3,22 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 
-# Ensure CORS allows all methods and origins
+# Allow all origins and methods, including OPTIONS preflight
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+@app.before_request
+def handle_preflight():
+    """Handles CORS preflight requests automatically."""
+    if request.method == "OPTIONS":
+        response = jsonify({"message": "CORS preflight success"})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        return response, 200
 
 @app.route('/')
 def home():
     return "Flask API for Face Analysis"
-
-@app.route('/analyze', methods=['OPTIONS'])
-def handle_preflight():
-    """Handle preflight requests to prevent CORS blocking."""
-    response = jsonify({"message": "CORS preflight success"})
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    return response, 200
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
