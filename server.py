@@ -5,6 +5,12 @@ import numpy as np
 import base64
 from main import FacialHealthAnalyzer
 
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)  # Allow all origins
+
+
 app = Flask(__name__)
 CORS(app)  # Allows frontend to send requests
 
