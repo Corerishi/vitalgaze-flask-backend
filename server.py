@@ -1,20 +1,9 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-
-# Allow all origins and methods, including OPTIONS preflight
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
-
-@app.before_request
-def handle_preflight():
-    """Handles CORS preflight requests automatically."""
-    if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS preflight success"})
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        response.headers.add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        return response, 200
 
 @app.route('/')
 def home():
@@ -34,5 +23,5 @@ def analyze():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    from os import environ
-    app.run(host='0.0.0.0', port=int(environ.get('PORT', 5000)), debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Get port dynamically from Render
+    app.run(host="0.0.0.0", port=port, debug=True)
