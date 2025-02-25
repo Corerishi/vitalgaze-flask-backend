@@ -8,9 +8,10 @@ from tkinter import ttk, Label
 from PIL import Image, ImageTk
 import threading
 from queue import Queue
+import json
 
 class ResultWindow:
-    def __init__(self, image, results):
+    def __init__(self, image, results, json_response):
         # Create main window
         self.root = tk.Tk()
         self.root.title("Analysis Results")
@@ -64,7 +65,7 @@ class ResultWindow:
         
         self._add_result("Skin Redness", 
                         f"{results['skin_conditions']['redness_level']:.1f}",
-                        results['skin_conditions']['redness_level'] > 150)
+                        results['skin_conditions']['redness_level'] > 40)
         
         self._add_result("Eye Droopiness", 
                         f"{results['eye_analysis']['eye_ratio']:.2f}",
@@ -89,6 +90,19 @@ class ResultWindow:
         status_text = "ABNORMAL" if results['is_abnormal'] else "NORMAL"
         status_value = ttk.Label(status_frame, text=status_text, style=status_style)
         status_value.pack(side=tk.LEFT)
+        
+        # JSON display section
+        json_frame = ttk.Frame(self.main_frame)
+        json_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        json_label = ttk.Label(json_frame, text="JSON Response:", style='Header.TLabel')
+        json_label.pack(anchor='w', pady=(10, 5))
+        
+        # Create text area for JSON display
+        json_text = tk.Text(json_frame, height=10, width=70, wrap='word')
+        json_text.insert(tk.END, json_response)
+        json_text.config(state='disabled')  # Make read-only
+        json_text.pack(fill=tk.BOTH, expand=True)
         
         # Close button
         close_button = ttk.Button(self.main_frame, text="Close", 
@@ -148,7 +162,7 @@ class FacialHealthAnalyzer:
         results = self.face_mesh.process(rgb_frame)
         
         if not results.multi_face_landmarks:
-            return frame, None
+            return frame, None, None
             
         landmarks = results.multi_face_landmarks[0]
         
@@ -170,13 +184,17 @@ class FacialHealthAnalyzer:
             'skin_conditions': skin_analysis,
             'eye_analysis': eye_analysis,
             'is_toxicated': is_toxicated,
-            'is_abnormal': is_abnormal
+            'is_abnormal': is_abnormal,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
+        
+        # Create JSON response
+        json_response = self.create_json_response(analysis_results)
         
         # Draw findings on frame
         frame = self.draw_analysis_on_frame(frame, landmarks, analysis_results)
         
-        return frame, analysis_results
+        return frame, analysis_results, json_response
     
     def detect_toxication(self, skin_analysis, eye_analysis):
         """Detect if person shows signs of toxication"""
@@ -297,10 +315,37 @@ class FacialHealthAnalyzer:
             cv2.circle(frame, (x, y), 1, (0, 255, 0), -1)
         
         return frame
+    
+    import json
 
-def show_results(image, results):
+    def create_json_response(self, results):
+        """Create a JSON response string from the analysis results"""
+        try:
+            # Create a copy of results that can be serialized to JSON
+            serializable_results = {
+                'timestamp': results.get('timestamp', 'N/A'),  # Default to 'N/A' if missing
+                'skin_conditions': {
+                    'redness_level': float(results['skin_conditions'].get('redness_level', 0.0)),  
+                    'pimples_detected': results['skin_conditions'].get('pimples_detected', False)
+                },
+                'eye_analysis': {
+                    'eye_ratio': float(results['eye_analysis'].get('eye_ratio', 0.0)),  
+                    'redness': float(results['eye_analysis'].get('redness', 0.0))
+                },
+                'is_toxicated': results.get('is_toxicated', False),
+                'is_abnormal': results.get('is_abnormal', False)
+            }
+
+            # Convert to formatted JSON string
+            return json.dumps(serializable_results, indent=4)
+
+        except (KeyError, ValueError, TypeError) as e:
+            return json.dumps({'error': f"Failed to serialize results: {str(e)}"}, indent=4)
+
+
+def show_results(image, results, json_response):
     """Show results in a new window"""
-    ResultWindow(image, results)
+    ResultWindow(image, results, json_response)
 
 def main():
     analyzer = FacialHealthAnalyzer()
@@ -317,17 +362,22 @@ def main():
         key = cv2.waitKey(1) & 0xFF
         if key == ord('c'):
             # Analyze captured frame
-            analyzed_frame, results = analyzer.analyze_face(frame.copy())
+            analyzed_frame, results, json_response = analyzer.analyze_face(frame.copy())
             
             if results is not None:
+                # Save image results
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                image_filename = f"{analyzer.output_dir}/analyzed_{timestamp}.jpg"
+                cv2.imwrite(image_filename, analyzed_frame)
+                
+                # Print JSON response to console
+                print("\nJSON Response:")
+                print(json_response)
+                
                 # Start result window in a new thread
                 threading.Thread(target=show_results, 
-                              args=(analyzed_frame, results),
+                              args=(analyzed_frame, results, json_response),
                               daemon=True).start()
-                
-                # Save results
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                cv2.imwrite(f"analysis_results/analyzed_{timestamp}.jpg", analyzed_frame)
             else:
                 print("No face detected in the image")
                 
